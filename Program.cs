@@ -15,21 +15,22 @@ namespace SerialListener
             Console.WriteLine("Serial Listener!");
 
             // Serial startup
-            _serialPort.DataReceived +=_serialPort_DataReceived;
             while (!connectToSerial()){ }
 
-            connectToDB();
+            ConnectToDB();
+            // This must be after ConnectToDB or it will try to access a closed db
+            _serialPort.DataReceived +=_serialPort_DataReceived;
 
 
             while (true)
             {
-                postData(0, float.Parse(Console.ReadLine()));
+                PostData(0, float.Parse(Console.ReadLine()));
             }
         }
 
         private static void _serialPort_DataReceived(object sender, SerialDataReceivedEventArgs e)
         {
-            postData(int.Parse(_serialPort.ReadLine()), 0);
+            PostData(float.Parse(_serialPort.ReadLine()), 0);
         }
 
         static bool connectToSerial()
@@ -62,19 +63,16 @@ namespace SerialListener
         private static MySqlConnection _dbConnection;
         private static MySqlCommand _dbCommand;
         private static string connection_data = "server=localhost;user=root;database=data_visualiser_website;port=3306;";
-        static bool connectToDB()
+        static bool ConnectToDB()
         {
             // Generate and open new MySQL connection
             _dbConnection = new MySqlConnection(connection_data);
             _dbConnection.Open();
 
-            // Generate new command instance
-            _dbCommand = new MySqlCommand();
-
             return _dbConnection.State.ToString() == "Open" ? true : false;
         }
 
-        static void postData(float parameter_1, float parameter_2)
+        static void PostData(float parameter_1, float parameter_2)
         {
             string timeStamp = GetTimeData();
             string query = "";
@@ -95,9 +93,11 @@ namespace SerialListener
 
         private static bool PostDataToMySQL(string query)
         {
-            if (query == null) return false;
-            _dbCommand.Connection = _dbConnection;
-            _dbCommand.CommandText = query;
+            if (string.IsNullOrEmpty(query)) return false;
+            if (_dbConnection == null) return false;
+
+            // Generate new command instance
+            _dbCommand = new MySqlCommand(query, _dbConnection);
             return _dbCommand.ExecuteNonQuery() == 1 ? true : false;
         }
 
